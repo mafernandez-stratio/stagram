@@ -1,7 +1,8 @@
-package io.miguel0afd.stagram
+package io.miguel0afd.stagram.collector
 
 import com.rydgel.scalagram._
 import com.rydgel.scalagram.responses._
+import io.miguel0afd.stagram.collector.config.CollectorConfig
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
@@ -14,25 +15,28 @@ import scala.language.postfixOps
 /**
   * Created by miguelangelfernandezdiaz on 26/01/16.
   */
-class Collector extends App {
+class Collector extends App with CollectorConfig {
 
-  val clientId = "client-id"
-  val clientSecret = "client-secret"
-  val redirectURI = "redirect-URI"
+  val clientId = config.getString("clientId")
+  val clientSecret = config.getString("clientSecret")
+  val redirectURI = config.getString("redirectURI")
 
   // Server-Side login
   // Step 1: Get a URL to call. This URL will return the CODE to use in step 2
   val codeUrl = Authentication.codeURL(clientId, redirectURI)
 
   // Step 2: Use the code to get an AccessToken
-  val accessTokenFuture = Authentication.requestToken(clientId, clientSecret, redirectURI, code = "the-code-from-step-1")
+  val accessTokenFuture = Authentication.requestToken(clientId, clientSecret, redirectURI, code = codeUrl)
+
+  var authToken: AccessToken = ???
+
   val accessToken = accessTokenFuture onComplete {
-    case Success(Response(Some(token: AccessToken), _, _, _)) => token
+    case Success(Response(Some(token: AccessToken), _, _, _)) => authToken = token
     case Failure(t) => println("An error has ocurred: " + t.getMessage)
   }
 
   // Making an authenticated call
-  val auth = AccessToken("an-access-token")
+  val auth = authToken
   // The library is asynchronous by default and returns a promise.
   val future = Scalagram.userFeed(auth)
   future onComplete {
@@ -46,7 +50,7 @@ class Collector extends App {
   // You can activate this option for all your calls
   // You just need to create a SignedAccessToken instead.
   // (please read the documentation here https://instagram.com/developer/secure-api-requests/)
-  val signedAccessToken = SignedAccessToken("accessToken", "clientSecret")
+  val signedAccessToken = SignedAccessToken(authToken.token, clientSecret)
   // Usage example
   Scalagram.comment(signedAccessToken, "media-id", "my comment")
 
